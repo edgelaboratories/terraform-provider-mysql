@@ -3,6 +3,7 @@ package mysql
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"errors"
 
@@ -16,6 +17,9 @@ func resourceUser() *schema.Resource {
 		Update: UpdateUser,
 		Read:   ReadUser,
 		Delete: DeleteUser,
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 
 		Schema: map[string]*schema.Schema{
 			"user": &schema.Schema{
@@ -211,8 +215,10 @@ func ReadUser(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 
-	stmtSQL := fmt.Sprintf("SELECT USER FROM mysql.user WHERE USER='%s'",
-		d.Get("user").(string))
+	username := strings.Split(d.Id(), "@")[0]
+
+	stmtSQL := fmt.Sprintf("SELECT USER FROM mysql.user WHERE USER='%s' AND host='%%'",
+		username)
 
 	log.Println("Executing statement:", stmtSQL)
 
@@ -224,6 +230,10 @@ func ReadUser(d *schema.ResourceData, meta interface{}) error {
 
 	if !rows.Next() && rows.Err() == nil {
 		d.SetId("")
+	} else {
+		d.Set("user", username)
+		d.Set("host", "%")
+		d.Set("tls_option", "NONE")
 	}
 	return rows.Err()
 }
